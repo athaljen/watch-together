@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+    <style>
+      body {
+        background: #1a1a1a;
+        margin: 0;
+        padding: 0;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .header.hidden {
+        display: none;
+      }
+      .header input {
+        padding: 10px;
+        width: 250px;
+        border: none;
+        border-radius: 5px;
+        background-color: #333333;
+        color: white;
+        height: 40px;
+        box-sizing: border-box;
+      }
+      .header button {
+        height: 40px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+      }
+      #info-box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        height: 100vh;
+        transition: all 0.3s ease;
+        opacity: 0;
+        transform: translateY(20px);
+        color: white;
+      }
+      #info-box.active {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .copy-link {
+        margin-top: 20px;
+        padding: 5px 20px;
+        border: none;
+        border-radius: 25px;
+        border: 1px solid #737373;
+        color: white;
+        background-color: transparent;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <input id="room-name-input" type="text" placeholder="Enter room name" />
+      <button onclick="createRoom()">Create Room</button>
+    </div>
+
+    <div id="info-box">
+      <h1>Welcome to the Room Creation Page!</h1>
+      <div id="random-details"></div>
+      <button class="copy-link" onclick="copyRoomLink()">Copy Link</button>
+    </div>
+
+    <script>
+      const socket = io("http://localhost:3000");
+
+      const getRandomString = (length) => {
+        const chars =
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let result = "";
+        for (let i = 0; i < length; i++) {
+          result += chars[Math.floor(Math.random() * chars.length)];
+        }
+        return result;
+      };
+
+      let currentRoomId = null;
+      let currentRoomName = null;
+      let roomSecret = null;
+
+      function showRoomUI(name, id) {
+        const infoBox = document.getElementById("info-box");
+        const header = document.querySelector(".header");
+
+        infoBox.classList.add("active");
+        header.classList.add("hidden");
+
+        let text = `Room "${name}", id: ${id}`;
+
+        document.getElementById("random-details").textContent = text;
+      }
+
+      // CREATE ROOM (User A)
+      function createRoom() {
+        currentRoomName = document
+          .getElementById("room-name-input")
+          .value.trim();
+
+        if (!currentRoomName) {
+          alert("Please enter a room name.");
+          return;
+        }
+
+        currentRoomId = getRandomString(15);
+        roomSecret = getRandomString(30);
+
+        // send to backend
+        socket.emit("create-room", {
+          roomId: currentRoomId,
+          roomName: currentRoomName,
+          secret: roomSecret,
+        });
+
+        showRoomUI(currentRoomName, currentRoomId, roomSecret);
+      }
+
+      // COPY LINK
+      function copyRoomLink() {
+        const roomLink = `${window.location.origin}/?room_id=${currentRoomId}&room_name=${encodeURIComponent(currentRoomName)}`;
+
+        navigator.clipboard.writeText(roomLink).then(() => {
+          alert("Room link copied!");
+        });
+      }
+
+      // JOIN ROOM (User B)
+      function joinRoom(roomId, roomName) {
+        currentRoomId = roomId;
+        currentRoomName = roomName;
+
+        socket.emit("join-room", { roomId });
+      }
+
+      // RECEIVE ROOM DATA
+      socket.on("room-data", (data) => {
+        const { roomId, roomName, secret } = data;
+
+        currentRoomId = roomId;
+        currentRoomName = roomName;
+        roomSecret = secret;
+
+        showRoomUI(roomName, roomId, secret);
+      });
+
+      // ERROR HANDLING
+      socket.on("error-message", (msg) => {
+        alert(msg);
+      });
+
+      // LOAD FROM URL
+      function loadRoomFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        const roomId = params.get("room_id");
+        const roomName = params.get("room_name");
+
+        if (roomId) {
+          joinRoom(roomId, roomName || "Unknown");
+        }
+      }
+
+      window.onload = loadRoomFromURL;
+    </script>
+  </body>
+</html>
