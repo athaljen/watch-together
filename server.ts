@@ -12,8 +12,16 @@ const io = new Server(server, {
 // Room type
 type Room = {
   ownerSocketId: string;
-  secret: string;
+  password: string;
   roomName: string;
+  videoUrl: string;
+};
+
+type CreateRoomData = {
+  roomId: string;
+  roomName: string;
+  password: string;
+  videoUrl: string;
 };
 
 // In-memory storage
@@ -25,57 +33,39 @@ io.on("connection", (socket: Socket) => {
   // Create room
   socket.on(
     "create-room",
-    ({
-      roomId,
-      roomName,
-      secret,
-    }: {
-      roomId: string;
-      roomName: string;
-      secret: string;
-    }) => {
+    ({ roomId, roomName, password, videoUrl }: CreateRoomData) => {
       rooms[roomId] = {
         ownerSocketId: socket.id,
-        secret,
+        password,
         roomName,
+        videoUrl,
       };
-
       console.log(`Room created: ${roomId}`);
     },
   );
 
   // Join room
-  socket.on("join-room", ({ roomId }: { roomId: string }) => {
-    const room = rooms[roomId];
-
-    if (!room) {
-      socket.emit("error-message", "Room not found");
-      return;
-    }
-
-    // Option 1: Directly send secret
-    socket.emit("room-data", {
-      roomId,
-      roomName: room.roomName,
-      secret: room.secret,
-    });
-  });
-
-  // Optional: owner sends secret manually
   socket.on(
-    "send-secret",
-    ({
-      roomId,
-      targetSocketId,
-      secret,
-    }: {
-      roomId: string;
-      targetSocketId: string;
-      secret: string;
-    }) => {
-      io.to(targetSocketId).emit("room-secret", {
-        roomId,
-        secret,
+    "join-room",
+    ({ roomId, password }: { roomId: string; password?: string }) => {
+      const roomExist = rooms[roomId];
+
+      if (!roomExist) {
+        socket.emit("error-message", "Room not found");
+        return;
+      }
+      if (roomExist.password) {
+        if (password !== roomExist.password) {
+          socket.emit("error-message", "Incorrect password");
+          return;
+        }
+      }
+
+      // Join the Socket.IO room
+      socket.join(roomId);
+      socket.emit("room-data", {
+        roomId: roomId,
+        roomName: roomExist.roomName,
       });
     },
   );
@@ -95,6 +85,40 @@ io.on("connection", (socket: Socket) => {
 
 app.get("/", (_, res) => {
   res.send("Socket server running");
+});
+
+// extract url's video url from provided webpage
+async function extractVideoUrl(webpageUrl: string): Promise<string[] | null> {
+  try {
+    const res = await fetch(webpageUrl);
+    const html = await res.text();
+
+    // Use regex to find video URLs in the HTML
+    const videoUrlRegex = /<video[^>]+src="([^">]+)"/i;
+    const match = html.match(videoUrlRegex);
+    if (match) {
+      return match;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching webpage:", error);
+    return null;
+  }
+}
+
+app.get("/extract-video-url", async (req, res) => {
+  const webpageUrl = req.query.url as string;
+  if (!webpageUrl) {
+    res.status(400).json({ error: "Missing url parameter" });
+    return;
+  }
+
+  const videoUrls = await extractVideoUrl(webpageUrl);
+  if (videoUrls) {
+    res.json({ videoUrls });
+  } else {
+    res.status(404).json({ error: "No video URL found" });
+  }
 });
 
 server.listen(3000, () => {
