@@ -1,6 +1,7 @@
 import express from "express";
 import http from "http";
 import { Server, Socket } from "socket.io";
+import cors from "cors";
 
 const app = express();
 const server = http.createServer(app);
@@ -8,6 +9,8 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" },
 });
+
+app.use(cors({ origin: "*" }));
 
 // Room type
 type Room = {
@@ -94,12 +97,10 @@ async function extractVideoUrl(webpageUrl: string): Promise<string[] | null> {
     const html = await res.text();
 
     // Use regex to find video URLs in the HTML
-    const videoUrlRegex = /<video[^>]+src="([^">]+)"/i;
-    const match = html.match(videoUrlRegex);
-    if (match) {
-      return match;
-    }
-    return null;
+  const regex = /<(video|source)[^>]+src="([^">]+)"/gi;
+const matches = [...html.matchAll(regex)];
+
+return matches.length ? matches.map(m => m[2]) : null;
   } catch (error) {
     console.error("Error fetching webpage:", error);
     return null;

@@ -153,9 +153,9 @@
             id="create-url-input"
             type="text"
             class="primary-input"
-            placeholder="Enter room name"
+            placeholder="Enter URL"
           />
-          <input
+          <!-- <input
             id="create-name-input"
             type="text"
             class="primary-input"
@@ -166,8 +166,8 @@
             type="password"
             class="primary-input"
             placeholder="Enter password"
-          />
-          <button onclick="createRoom()" class="primary-button">
+          /> -->
+          <button onclick="fetchVideoUrl()" class="primary-button">
             Create Room
           </button>
         </div>
@@ -287,19 +287,22 @@
       /// Core Functions
       async function fetchVideoUrl() {
         try {
-          const createUrlInput = document
+          currentVideoUrl = document
             .getElementById("create-url-input")
             .value.trim();
 
-          if (!createUrlInput) {
+          if (!currentVideoUrl) {
             showToast("Please enter a video or website URL");
             return;
           }
           const response = await fetch(
-            `${apiEndpoint}/extract-video-url?url=${encodeURIComponent(createUrlInput)}`,
+            `${apiEndpoint}/extract-video-url?url=${encodeURIComponent(currentVideoUrl)}`,
+            { method: "GET" },
           );
           const data = await response.json();
+          console.log("data", data);
         } catch (error) {
+          console.log("error", error);
           showToast(error);
         }
       }
@@ -307,22 +310,6 @@
       // Create Room
       function createRoom() {
         try {
-          currentRoomName = document
-            .getElementById("create-name-input")
-            .value.trim();
-
-          currentRoomPassword = document
-            .getElementById("create-password-input")
-            .value.trim();
-
-          if (!currentVideoUrl) {
-            showToast("Please enter a video or website URL");
-            return;
-          } else if (!currentRoomName) {
-            showToast("Please enter a room name");
-            return;
-          }
-
           currentRoomId = getRandomString(15);
 
           // send to backend
